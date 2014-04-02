@@ -7,7 +7,7 @@ module Sprockets
 
     def evaluate(context, locals, &block)
       if File.extname(file) =~ /\.coffee$/
-        "#{data}\n//@ sourceMappingURL=#{File.basename(file, ".*")}.map"
+        "#{data}\n//# sourceMappingURL=#{File.basename(file, ".*")}.map\n"
       else
         data
       end
