@@ -24,30 +24,39 @@ module Sprockets
 
       if File.extname(path) == '.coffee'
         asset = find_asset(path, :bundle => !body_only?(env), :source => true)
-        if asset.stale? File
+
+        if_stale(env, asset) do |headers|
           coffee_file = File.read(asset.pathname)
-          [200, {'Content-Type' => 'application/javascript'}, [coffee_file]]
-        else
-          [304, {}, []]
+          [200, { 'Content-Type' => 'application/javascript' }.merge(headers), [coffee_file]]
         end
       elsif File.extname(path) == '.map'
         path = path.chomp('.map')
         asset = find_asset(path, :bundle => !body_only?(env))
 
-        if File.extname(asset.pathname) == '.coffee'
-          if asset.stale? File
-            coffee_file = File.read(asset.pathname)
-            source_map_result = CoffeeScript.compile(coffee_file, {:format => :map, :filename => File.basename(asset.pathname)})
-            source_map = source_map_result["v3SourceMap"]
-            [200, {'Content-Type' => 'application/json'}, [source_map]]
-          else
-            [304, {}, []]
-          end
-        else
-          old_call(env)
+        if File.extname(asset.pathname) != '.coffee'
+          return old_call(env)
+        end
+
+        if_stale(env, asset) do |headers|
+          coffee_file = File.read(asset.pathname)
+          source_map_result = CoffeeScript.compile(coffee_file, {:format => :map, :filename => File.basename(asset.pathname)})
+          source_map = source_map_result["v3SourceMap"]
+          [200, { 'Content-Type' => 'application/json' }.merge(headers), [source_map]]
         end
       else
         old_call(env)
+      end
+    end
+
+    def if_stale(env, asset)
+      mtime = File.mtime asset.pathname
+      modified_since = Time.parse(env["HTTP_IF_MODIFIED_SINCE"]) if env["HTTP_IF_MODIFIED_SINCE"]
+
+      if modified_since and modified_since >= mtime
+        [304, {}, []]
+      else
+        headers = { "Cache-Control" => "public", "Last-Modified" => mtime.httpdate }
+        yield headers
       end
     end
   end
