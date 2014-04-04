@@ -24,17 +24,25 @@ module Sprockets
 
       if File.extname(path) == '.coffee'
         asset = find_asset(path, :bundle => !body_only?(env), :source => true)
-        coffee_file = File.read(asset.pathname)
-        [200, {'Content-Type' => 'application/javascript'}, [coffee_file]]
+        if asset.stale? File
+          coffee_file = File.read(asset.pathname)
+          [200, {'Content-Type' => 'application/javascript'}, [coffee_file]]
+        else
+          [304, {}, []]
+        end
       elsif File.extname(path) == '.map'
         path = path.chomp('.map')
         asset = find_asset(path, :bundle => !body_only?(env))
 
         if File.extname(asset.pathname) == '.coffee'
-          coffee_file = File.read(asset.pathname)
-          source_map_result = CoffeeScript.compile(coffee_file, {:format => :map, :filename => File.basename(asset.pathname)})
-          source_map = source_map_result["v3SourceMap"]
-          [200, {'Content-Type' => 'application/json'}, [source_map]]
+          if asset.stale? File
+            coffee_file = File.read(asset.pathname)
+            source_map_result = CoffeeScript.compile(coffee_file, {:format => :map, :filename => File.basename(asset.pathname)})
+            source_map = source_map_result["v3SourceMap"]
+            [200, {'Content-Type' => 'application/json'}, [source_map]]
+          else
+            [304, {}, []]
+          end
         else
           old_call(env)
         end
